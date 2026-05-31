@@ -104,15 +104,27 @@ class _FullBoardTabState extends State<_FullBoardTab> {
   /// [bytes] are PNG-encoded. When [format] is "jpg" we rename the temp file
   /// with a .jpg extension so the OS picker shows it as a photo.
   Future<void> _onImageExported(Uint8List bytes, String format) async {
+    // Capture context-dependent values before any async gap (lint: no
+    // BuildContext use across awaits).
+    final screenSize = MediaQuery.of(context).size;
+    final origin = Rect.fromCenter(
+      center: Offset(screenSize.width / 2, screenSize.height / 2),
+      width: 1,
+      height: 1,
+    );
+
     try {
       final dir = await getTemporaryDirectory();
       final ext = format == 'jpg' ? 'jpg' : 'png';
       final mime = format == 'jpg' ? 'image/jpeg' : 'image/png';
       final file = File('${dir.path}/canvas_export.$ext');
       await file.writeAsBytes(bytes);
+
+      // iOS requires a non-zero sharePositionOrigin to anchor the share sheet.
       await Share.shareXFiles(
         [XFile(file.path, mimeType: mime, name: 'canvas_export.$ext')],
         subject: 'Canvas export',
+        sharePositionOrigin: origin,
       );
     } catch (e) {
       if (!mounted) return;
