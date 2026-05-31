@@ -3,10 +3,10 @@ description: >-
   A Flutter canvas library inspired by Fabric.js — interactive, selectable,
   draggable, scalable, and rotatable objects on a canvas with free drawing,
   JSON serialization, and SVG path support.
-version: 0.1.0
-homepage: https://github.com/devxhub/flutter_fabric
-repository: https://github.com/devxhub/flutter_fabric
-issue_tracker: https://github.com/devxhub/flutter_fabric/issues
+version: 0.0.1
+homepage: https://github.com/devxhub/flutter-fabric
+repository: https://github.com/devxhub/flutter-fabric
+issue_tracker: https://github.com/devxhub/flutter-fabric/issues
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
