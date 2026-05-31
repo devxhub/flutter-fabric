@@ -41,18 +41,20 @@ class FabricCircle extends FabricObject {
 
   @override
   void render(Canvas canvas, double w, double h) {
-    final r = w / 2;
-    final center = Offset(r, r);
+    final hasStroke = stroke != Colors.transparent && strokeWidth > 0;
+    // Inset geometry by half the stroke width so the stroke stays fully
+    // within the bounding box and isn't clipped by the saveLayer rect.
+    final inset = hasStroke ? strokeWidth / 2 : 0.0;
+    final r = w / 2 - inset;
+    final center = Offset(w / 2, h / 2);
+    if (r <= 0) return;
+
     if (_startAngle == 0 && _endAngle == 360) {
-      if (fill != Colors.transparent) {
-        canvas.drawCircle(center, r, fillPaint);
-      }
-      if (stroke != Colors.transparent && strokeWidth > 0) {
-        canvas.drawCircle(center, r, strokePaint);
-      }
+      if (fill != Colors.transparent) canvas.drawCircle(center, r, fillPaint);
+      if (hasStroke) canvas.drawCircle(center, r, strokePaint);
     } else {
       final path = Path()
-        ..moveTo(r, r)
+        ..moveTo(w / 2, h / 2)
         ..arcTo(
           Rect.fromCircle(center: center, radius: r),
           _startAngle * 3.14159265 / 180,
@@ -61,9 +63,7 @@ class FabricCircle extends FabricObject {
         )
         ..close();
       if (fill != Colors.transparent) canvas.drawPath(path, fillPaint);
-      if (stroke != Colors.transparent && strokeWidth > 0) {
-        canvas.drawPath(path, strokePaint);
-      }
+      if (hasStroke) canvas.drawPath(path, strokePaint);
     }
   }
 

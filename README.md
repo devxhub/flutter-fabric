@@ -24,6 +24,7 @@ Place, draw, select, move, scale, rotate, and style canvas objects — with a si
   - [JSON serialization](#json-serialization)
   - [SVG export](#svg-export)
   - [PNG export](#png-export)
+  - [Export & Submit (FabricBoard)](#export--submit-fabricboard)
 - [Object types](#object-types)
 - [Brush types](#brush-types)
 - [Installation](#installation)
@@ -178,6 +179,8 @@ FabricBoard(
 | `toolbarPosition` | `FabricToolbarPosition` | `bottom` | `top`, `bottom`, `left`, `right`, or `floating`. |
 | `toolbarItems` | `List<FabricTool>?` | all tools | Which tools to show and in what order. |
 | `toolbarStyle` | `FabricToolbarStyle` | default | Colors, icon size, elevation, padding. |
+| `showToolbarLabels` | `bool` | `false` | Show a text label below each tool icon. |
+| `showUserGuide` | `bool` | `true` | Floating "Help" button — opens a context-aware guide that adapts to the active feature flags. |
 
 **All available tools:**
 
@@ -214,6 +217,9 @@ FabricBoard(
 | `FabricTool.colorPicker` | settings | Pick the fill color (opens color grid). |
 | `FabricTool.strokeColor` | settings | Pick the stroke/border color. |
 | `FabricTool.brushWidth` | settings | Adjust brush width 1–60 px. |
+| `FabricTool.exportJson` | export | Opens a sheet with the canvas JSON and a Copy button. |
+| `FabricTool.exportImage` | export | Renders the canvas to a PNG and shows a preview dialog. |
+| `FabricTool.submit` | export | Fires the `onSubmit` callback with the current canvas JSON. |
 | `FabricTool.divider` | visual | Inserts a separator line between groups. |
 
 **Custom toolbar — minimal drawing toolbar:**
@@ -313,6 +319,16 @@ FabricBoard(
     // Safe to populate initial objects here
     ctrl.add(FabricText('Hello World', left: 40, top: 40));
   },
+
+  // Export & Submit callbacks (new)
+  onSubmit: (String json) {
+    // Called when FabricTool.submit is tapped, or key.currentState!.submit()
+    sendToServer(json);
+  },
+  onChangeJsonData: (String json) {
+    // Fires on every canvas change — debounce for heavy operations
+    setState(() => _liveJson = json);
+  },
 )
 ```
 
@@ -339,8 +355,17 @@ void _startDrawing() => _boardKey.currentState!.setTool(FabricTool.pencil);
 // Change color
 void _setGreen() => _boardKey.currentState!.fillColor = Colors.green;
 
-// Export
-String get _json => _boardKey.currentState!.controller.toJson();
+// Export JSON
+String get _json => _boardKey.currentState!.exportJson();
+
+// Export PNG (returns Uint8List?)
+Future<void> _savePng() async {
+  final bytes = await _boardKey.currentState!.exportImage(pixelRatio: 2.0);
+  // bytes can be saved to disk, sent to a server, or shared
+}
+
+// Submit (fires onSubmit callback)
+void _handleSubmit() => _boardKey.currentState!.submit();
 ```
 
 ---
@@ -475,11 +500,79 @@ final svgString = ctrl.toSvg(width: 800, height: 600);
 
 ### PNG export
 
+**Low-level — via `FabricController`:**
+
 ```dart
+// toImage returns a dart:ui Image at the given logical size
 final uiImage = await ctrl.toImage(const Size(800, 600));
 final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
 final bytes = byteData!.buffer.asUint8List();
+
+// exportPng — convenience wrapper that returns Uint8List directly
+// size defaults to a tight bounding box around all objects
+final Uint8List? bytes = await ctrl.exportPng(pixelRatio: 2.0);
+final Uint8List? bytes2 = await ctrl.exportPng(
+  pixelRatio: 3.0,
+  size: const Size(1920, 1080),
+);
 ```
+
+**High-level — via `FabricBoardState`:**
+
+```dart
+final key = GlobalKey<FabricBoardState>();
+
+// Returns Uint8List? (null if canvas is empty or rendering fails)
+final bytes = await key.currentState!.exportImage(pixelRatio: 2.0);
+
+// The built-in toolbar button FabricTool.exportImage shows a live preview dialog.
+// Add it to your toolbarItems to give users a one-tap export.
+```
+
+### Export & Submit (FabricBoard)
+
+`FabricBoard` exposes three callbacks and three matching public methods for
+getting data out of the canvas.
+
+| Callback            | Fires when                                                    | Receives                    |
+|---------------------|---------------------------------------------------------------|-----------------------------|
+| `onSubmit`          | `FabricTool.submit` tapped, or `state.submit()` called        | `String json`               |
+| `onChangeJsonData`  | Any canvas change (add, move, style, undo, …)                 | `String json` (full canvas) |
+
+```dart
+FabricBoard(
+  // Real-time JSON — ideal for auto-save or live preview
+  onChangeJsonData: (json) => _autoSave(json),
+
+  // Called by the Submit toolbar button or state.submit()
+  onSubmit: (json) => submitForm(json),
+
+  toolbarItems: const [
+    // ... other tools ...
+    FabricTool.divider,
+    FabricTool.exportJson,   // pretty-print JSON sheet + copy
+    FabricTool.exportImage,  // live PNG preview dialog
+    FabricTool.submit,       // fires onSubmit
+  ],
+)
+```
+
+**Programmatic equivalents** (all available via `GlobalKey<FabricBoardState>`):
+
+```dart
+// Snapshot the canvas as JSON string
+String json = key.currentState!.exportJson();
+
+// Render to PNG bytes (async)
+Uint8List? bytes = await key.currentState!.exportImage(pixelRatio: 2.0);
+
+// Fire onSubmit callback manually
+key.currentState!.submit();
+```
+
+> **Debounce `onChangeJsonData`** when wiring it to heavy operations such as
+> network saves, because it fires on every `notifyListeners()` call from the
+> controller (dragging an object fires it on every frame).
 
 ---
 

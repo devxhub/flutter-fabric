@@ -25,15 +25,15 @@ class FabricTriangle extends FabricObject {
 
   @override
   void render(Canvas canvas, double w, double h) {
+    final hasStroke = stroke != Colors.transparent && strokeWidth > 0;
+    final inset = hasStroke ? strokeWidth / 2 : 0.0;
     final path = Path()
-      ..moveTo(w / 2, 0)
-      ..lineTo(w, h)
-      ..lineTo(0, h)
+      ..moveTo(w / 2, inset)
+      ..lineTo(w - inset, h - inset)
+      ..lineTo(inset, h - inset)
       ..close();
     if (fill != Colors.transparent) canvas.drawPath(path, fillPaint);
-    if (stroke != Colors.transparent && strokeWidth > 0) {
-      canvas.drawPath(path, strokePaint);
-    }
+    if (hasStroke) canvas.drawPath(path, strokePaint);
   }
 
   @override

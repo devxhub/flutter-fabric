@@ -44,11 +44,11 @@ class FabricEllipse extends FabricObject {
 
   @override
   void render(Canvas canvas, double w, double h) {
-    final oval = Rect.fromLTWH(0, 0, w, h);
+    final hasStroke = stroke != Colors.transparent && strokeWidth > 0;
+    final inset = hasStroke ? strokeWidth / 2 : 0.0;
+    final oval = Rect.fromLTWH(inset, inset, w - inset * 2, h - inset * 2);
     if (fill != Colors.transparent) canvas.drawOval(oval, fillPaint);
-    if (stroke != Colors.transparent && strokeWidth > 0) {
-      canvas.drawOval(oval, strokePaint);
-    }
+    if (hasStroke) canvas.drawOval(oval, strokePaint);
   }
 
   @override

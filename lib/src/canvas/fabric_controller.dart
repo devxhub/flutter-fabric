@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../objects/fabric_object.dart';
@@ -579,6 +580,62 @@ class FabricController with ChangeNotifier {
     final picture = recorder.endRecording();
     return picture.toImage(
         logicalSize.width.toInt(), logicalSize.height.toInt());
+  }
+
+  /// Exports the canvas to PNG bytes at [pixelRatio] resolution.
+  ///
+  /// [size] defaults to a tight bounding box around all objects (min 100×100).
+  /// The returned bytes can be saved to disk, shared, or displayed with
+  /// [Image.memory].
+  Future<Uint8List?> exportPng({
+    Size? size,
+    double pixelRatio = 2.0,
+  }) async {
+    final renderSize = size ?? _computeContentSize();
+    final physW = (renderSize.width * pixelRatio).round();
+    final physH = (renderSize.height * pixelRatio).round();
+    if (physW <= 0 || physH <= 0) return null;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+        recorder,
+        Rect.fromLTWH(
+            0, 0, renderSize.width * pixelRatio, renderSize.height * pixelRatio));
+    canvas.scale(pixelRatio);
+
+    canvas.drawRect(Offset.zero & renderSize, Paint()..color = backgroundColor);
+    if (_backgroundImage != null) {
+      canvas.drawImageRect(
+        _backgroundImage!,
+        Rect.fromLTWH(0, 0, _backgroundImage!.width.toDouble(),
+            _backgroundImage!.height.toDouble()),
+        Rect.fromLTWH(0, 0, renderSize.width, renderSize.height),
+        Paint(),
+      );
+    }
+    for (final obj in _objects) {
+      obj.paint(canvas, renderSize);
+    }
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(physW, physH);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return byteData?.buffer.asUint8List();
+  }
+
+  Size _computeContentSize() {
+    if (_objects.isEmpty) return const Size(800, 600);
+    double maxX = 0, maxY = 0;
+    for (final obj in _objects) {
+      final r = obj.aabb;
+      if (r.right > maxX) maxX = r.right;
+      if (r.bottom > maxY) maxY = r.bottom;
+    }
+    return Size(
+      (maxX + 40).clamp(100, double.infinity),
+      (maxY + 40).clamp(100, double.infinity),
+    );
   }
 
   /// Triggers a canvas repaint without a state change — used by [FabricCanvas]

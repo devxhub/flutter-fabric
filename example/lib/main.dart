@@ -1,5 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_fabric/flutter_fabric.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 void main() => runApp(const _App());
 
@@ -72,9 +76,14 @@ class _DemoShellState extends State<_DemoShell>
   }
 }
 
-// ── Tab 1: Full FabricBoard — all features enabled ─────────────────────────
+// ── Tab 1: Full FabricBoard ─────────────────────────────────────────────────
 
-/// Demonstrates the minimal code needed for a fully-featured canvas editor.
+/// Full-featured canvas with:
+/// - [showUserGuide]: "Help" button with context-aware guide
+/// - [showToolbarLabels]: optional labels toggle
+/// - [onSubmit]: fires when the Submit toolbar button is tapped
+/// - [onChangeJsonData]: receive canvas JSON on every edit
+/// - Toolbar includes exportJson and exportImage tools
 class _FullBoardTab extends StatefulWidget {
   const _FullBoardTab();
 
@@ -85,32 +94,141 @@ class _FullBoardTab extends StatefulWidget {
 class _FullBoardTabState extends State<_FullBoardTab> {
   final _key = GlobalKey<FabricBoardState>();
   String? _selectedId;
+  bool _showLabels = false;
+
+  // Updated on every canvas change via onChangeJsonData
+  int _jsonLength = 0;
+
+  /// Share or save the exported image bytes.
+  ///
+  /// [bytes] are PNG-encoded. When [format] is "jpg" we rename the temp file
+  /// with a .jpg extension so the OS picker shows it as a photo.
+  Future<void> _onImageExported(Uint8List bytes, String format) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final ext = format == 'jpg' ? 'jpg' : 'png';
+      final mime = format == 'jpg' ? 'image/jpeg' : 'image/png';
+      final file = File('${dir.path}/canvas_export.$ext');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: mime, name: 'canvas_export.$ext')],
+        subject: 'Canvas export',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Share failed: $e')),
+      );
+    }
+  }
+
+  void _onSubmit(String json) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Submitted'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Canvas JSON is ready to send.',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                json.length > 500
+                    ? '${json.substring(0, 500)}…\n(${json.length} chars total)'
+                    : json,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: json));
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('JSON copied to clipboard'),
+                    duration: Duration(seconds: 2)),
+              );
+            },
+            child: const Text('Copy & Close'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
-        // Status bar — shows selected object id
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: _selectedId != null ? 36 : 0,
-          color: Theme.of(context).colorScheme.primaryContainer,
-          alignment: Alignment.center,
-          child: Text(
-            'Selected: $_selectedId',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+        // ── Controls bar ──────────────────────────────────────────────────
+        Material(
+          color: cs.surfaceContainerLow,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                // Selected object id
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _selectedId != null
+                        ? Text(
+                            'Selected: $_selectedId',
+                            key: ValueKey(_selectedId),
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant),
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : Text(
+                            'JSON: $_jsonLength chars',
+                            key: const ValueKey('none'),
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant),
+                          ),
+                  ),
+                ),
+                // Labels toggle
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Labels',
+                        style: TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant)),
+                    const SizedBox(width: 4),
+                    Switch.adaptive(
+                      value: _showLabels,
+                      onChanged: (v) => setState(() => _showLabels = v),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
 
-        // ── The entire canvas editor — just one widget ──────────────────
+        // ── Canvas ────────────────────────────────────────────────────────
         Expanded(
           child: FabricBoard(
             key: _key,
 
-            // Feature toggles — all on by default
+            // Feature toggles
             enableSelection: true,
             enableDrag: true,
             enablePan: true,
@@ -120,29 +238,69 @@ class _FullBoardTabState extends State<_FullBoardTab> {
             enableDoubleTapEdit: true,
             enableLongPressMenu: true,
 
-            // Toolbar
+            // Toolbar — includes export tools and the submit button
             showToolbar: true,
-            toolbarPosition: FabricToolbarPosition.bottom,
+            toolbarPosition: FabricToolbarPosition.top,
+            toolbarItems: const [
+              FabricTool.select,
+              FabricTool.pencil,
+              FabricTool.eraser,
+              FabricTool.spray,
+              FabricTool.divider,
+              FabricTool.drawRect,
+              FabricTool.drawCircle,
+              FabricTool.drawEllipse,
+              FabricTool.drawTriangle,
+              FabricTool.drawLine,
+              FabricTool.divider,
+              FabricTool.addText,
+              FabricTool.addTextBox,
+              FabricTool.divider,
+              FabricTool.undo,
+              FabricTool.redo,
+              FabricTool.delete,
+              FabricTool.clear,
+              FabricTool.divider,
+              FabricTool.colorPicker,
+              FabricTool.strokeColor,
+              FabricTool.brushWidth,
+              FabricTool.divider,
+              FabricTool.exportJson, // opens JSON sheet
+              FabricTool.exportImage, // renders & previews PNG
+              FabricTool.submit, // calls onSubmit
+            ],
 
-            // Initial colors
+            showToolbarLabels: _showLabels,
+            showUserGuide: true,
+
             initialFillColor: Colors.indigo,
             initialStrokeColor: Colors.transparent,
             initialBrushWidth: 4,
 
-            // Callbacks
+            // ── Callbacks ──────────────────────────────────────────────
             onObjectSelected: (obj) => setState(() => _selectedId = obj.id),
             onSelectionCleared: () => setState(() => _selectedId = null),
+
+            // Real-time JSON — update char-count indicator
+            onChangeJsonData: (json) =>
+                setState(() => _jsonLength = json.length),
+
+            // Submit — show dialog with JSON
+            onSubmit: _onSubmit,
+
+            // Image export — share / save via share_plus
+            onImageExported: _onImageExported,
+
             onReady: (ctrl) {
               ctrl.add(FabricText(
-                'Use the toolbar below!',
-                left: 60,
-                top: 80,
-                fontSize: 22,
-                fill: Colors.indigo,
+                'Tap "Help" · long-press objects · use Export / Submit tools',
+                left: 20,
+                top: 60,
+                fontSize: 14,
+                fill: Colors.indigo.shade600,
               ));
             },
 
-            // Background: any Flutter widget goes here (must be last)
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey.shade50,
@@ -164,19 +322,18 @@ class _FullBoardTabState extends State<_FullBoardTab> {
 
 // ── Tab 2: Drawing only ─────────────────────────────────────────────────────
 
-/// Demonstrates disabling selection/move and showing only drawing tools.
+/// Pure drawing surface — no selection or move.
+/// [showToolbarLabels]: always on so every brush name is visible.
+/// [exportJson] and [exportImage] still available.
 class _DrawOnlyTab extends StatelessWidget {
   const _DrawOnlyTab();
 
   @override
   Widget build(BuildContext context) {
     return FabricBoard(
-      // No selection or object moving — pure drawing surface
       enableSelection: false,
       enableDrag: false,
       enableMarqueeSelection: false,
-
-      // Only drawing tools in the toolbar
       toolbarItems: const [
         FabricTool.pencil,
         FabricTool.eraser,
@@ -188,18 +345,21 @@ class _DrawOnlyTab extends StatelessWidget {
         FabricTool.undo,
         FabricTool.redo,
         FabricTool.clear,
+        FabricTool.divider,
+        FabricTool.exportJson,
+        FabricTool.exportImage,
       ],
       toolbarPosition: FabricToolbarPosition.top,
-
+      showToolbarLabels: true,
+      showUserGuide: true,
       toolbarStyle: FabricToolbarStyle(
-        backgroundColor: Colors.grey.shade900,
-        iconColor: Colors.white70,
+        backgroundColor: Colors.white70,
+        iconColor: Colors.grey.shade700,
         selectedColor: Theme.of(context).colorScheme.primary,
         selectedIconColor: Colors.white,
         borderRadius: 0,
         elevation: 4,
       ),
-
       initialFillColor: Colors.black,
       initialBrushWidth: 5,
     );
@@ -208,7 +368,8 @@ class _DrawOnlyTab extends StatelessWidget {
 
 // ── Tab 3: View only ────────────────────────────────────────────────────────
 
-/// Demonstrates a read-only canvas — zoom & pan but no editing.
+/// Read-only canvas — zoom & pan only.
+/// The user guide reflects that selection / editing are disabled.
 class _ViewOnlyTab extends StatefulWidget {
   const _ViewOnlyTab();
 
@@ -222,24 +383,39 @@ class _ViewOnlyTabState extends State<_ViewOnlyTab> {
   @override
   void initState() {
     super.initState();
-    // Populate with some objects
     _ctrl.add(FabricRect(
-      left: 40, top: 60, width: 160, height: 100,
+      left: 40,
+      top: 60,
+      width: 160,
+      height: 100,
       fill: Colors.indigo.shade200,
     ));
     _ctrl.add(FabricCircle(
-      left: 240, top: 60, radius: 50,
+      left: 240,
+      top: 60,
+      radius: 50,
       fill: Colors.pink.shade200,
     ));
     _ctrl.add(FabricTriangle(
-      left: 140, top: 200, width: 120, height: 100,
+      left: 140,
+      top: 200,
+      width: 120,
+      height: 100,
       fill: Colors.teal.shade200,
     ));
     _ctrl.add(FabricText(
-      'Read-only: zoom & pan only',
-      left: 30, top: 340,
+      'Read-only · zoom & pan only',
+      left: 30,
+      top: 340,
       fontSize: 18,
       fill: Colors.grey.shade700,
+    ));
+    _ctrl.add(FabricText(
+      'Tap "Help" to see what is enabled',
+      left: 30,
+      top: 375,
+      fontSize: 13,
+      fill: Colors.grey.shade500,
     ));
   }
 
@@ -253,7 +429,6 @@ class _ViewOnlyTabState extends State<_ViewOnlyTab> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Use FabricCanvas directly with all editing disabled
         FabricCanvas(
           controller: _ctrl,
           enableSelection: false,
@@ -264,7 +439,25 @@ class _ViewOnlyTabState extends State<_ViewOnlyTab> {
           enablePan: true,
           enableZoom: true,
         ),
-        // Overlay hint
+        // Overlay a no-toolbar FabricBoard for the user guide + export tools
+        Positioned.fill(
+          child: FabricBoard(
+            controller: _ctrl,
+            showToolbar: false,
+            enableSelection: false,
+            enableDrag: false,
+            enableMarqueeSelection: false,
+            enableKeyboardShortcuts: false,
+            enableDoubleTapEdit: false,
+            enableLongPressMenu: false,
+            enablePan: true,
+            enableZoom: true,
+            showUserGuide: true,
+            showToolbarLabels: false,
+            backgroundColor: Colors.transparent,
+          ),
+        ),
+        // Pinch/pan hint
         Positioned(
           top: 12,
           left: 0,

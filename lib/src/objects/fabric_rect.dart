@@ -43,12 +43,12 @@ class FabricRect extends FabricObject {
 
   @override
   void render(Canvas canvas, double w, double h) {
-    final rect = Rect.fromLTWH(0, 0, w, h);
+    final hasStroke = stroke != Colors.transparent && strokeWidth > 0;
+    final inset = hasStroke ? strokeWidth / 2 : 0.0;
+    final rect = Rect.fromLTWH(inset, inset, w - inset * 2, h - inset * 2);
     final rr = RRect.fromRectXY(rect, _rx, _ry);
     if (fill != Colors.transparent) canvas.drawRRect(rr, fillPaint);
-    if (stroke != Colors.transparent && strokeWidth > 0) {
-      canvas.drawRRect(rr, strokePaint);
-    }
+    if (hasStroke) canvas.drawRRect(rr, strokePaint);
   }
 
   @override
