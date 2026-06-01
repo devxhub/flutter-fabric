@@ -280,8 +280,16 @@ abstract class FabricObject with ChangeNotifier {
 
     if (_shadow != null) _drawShadow(canvas);
 
+    // Expand the saveLayer clip by half the stroke width so the outer edge of
+    // the stroke (which extends strokeWidth/2 beyond the geometry) is never
+    // clipped. Applies to every object type — free-drawing paths, lines, shapes.
+    final halfSw = (_stroke != Colors.transparent && _strokeWidth > 0)
+        ? _strokeWidth / 2
+        : 0.0;
+
     canvas.saveLayer(
-      Rect.fromLTWH(0, 0, scaledWidth, scaledHeight),
+      Rect.fromLTWH(
+          -halfSw, -halfSw, scaledWidth + halfSw * 2, scaledHeight + halfSw * 2),
       Paint()
         ..blendMode = _blendMode
         ..color = Color.fromARGB((_opacity * 255).round(), 255, 255, 255),
