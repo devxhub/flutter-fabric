@@ -5,6 +5,22 @@ Place, draw, select, move, scale, rotate, and style canvas objects — with a si
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/devxhub/flutter-fabric/refs/heads/main/screenshots/Simulator%20Screenshot%20-%20iPhone%2017%20Pro%20Max%20-%202026-06-01%20at%2010.19.46.png" width="230" style="margin-right:8px;" />
+
+  <img src="https://raw.githubusercontent.com/devxhub/flutter-fabric/refs/heads/main/screenshots/Simulator%20Screenshot%20-%20iPhone%2017%20Pro%20Max%20-%202026-06-01%20at%2010.47.17.png" width="230" style="margin-right:8px;" />
+
+  <img src="https://raw.githubusercontent.com/devxhub/flutter-fabric/refs/heads/main/screenshots/Simulator%20Screenshot%20-%20iPhone%2017%20Pro%20Max%20-%202026-06-01%20at%2010.20.05.png" width="230" style="margin-right:8px;" />
+
+  <img src="https://raw.githubusercontent.com/devxhub/flutter-fabric/refs/heads/main/screenshots/Simulator%20Screenshot%20-%20iPhone%2017%20Pro%20Max%20-%202026-06-01%20at%2010.20.31.png" width="230" />
+</p>
+
+
+---
+
+
 ## Contents
 
 - [Quick start](#quick-start)
